@@ -1,0 +1,76 @@
+services:
+  sampler:
+    build: .
+    container_name: birds-sampler
+    ports:
+      - "8001:8000"
+    environment:
+      - CORNELL_CAM_URL=${CORNELL_CAM_URL:-https://www.youtube.com/watch?v=x10vL6_47Dw}
+      - SAMPLE_INTERVAL=${SAMPLE_INTERVAL:-10}
+      - AUDIO_DURATION=${AUDIO_DURATION:-5}
+      - OUTPUT_DIR=/app/output
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=${DEBUG:-true}
+    volumes:
+      # Mount output directory to host for persistence
+      - ./output:/app/output
+      # Mount .env file if it exists
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  audio-recognizer:
+    build:
+      context: .
+      dockerfile: Dockerfile.audio
+    container_name: birds-audio-recognizer
+    ports:
+      - "8002:8002"
+    environment:
+      - MIN_CONFIDENCE=${MIN_CONFIDENCE:-0.6}
+      - HOST=0.0.0.0
+      - PORT=8002
+      - DEBUG=${DEBUG:-true}
+      - SERVICE_NAME=audio-recognizer
+    volumes:
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  image-recognizer:
+    build:
+      context: .
+      dockerfile: Dockerfile.image
+    container_name: birds-image-recognizer
+    ports:
+      - "8003:8003"
+    environment:
+      - MIN_CONFIDENCE=${MIN_CONFIDENCE:-0.6}
+      - HOST=0.0.0.0
+      - PORT=8003
+      - DEBUG=${DEBUG:-true}
+      - SERVICE_NAME=image-recognizer
+    volumes:
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  default:
+    name: birds-network
