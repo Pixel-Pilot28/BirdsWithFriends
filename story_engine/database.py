@@ -192,6 +192,66 @@ class ContentModeration(Base):
         return f"<ContentModeration(id={self.id}, episode={self.episode_id}, {status}, score={self.safety_score})>"
 
 
+class PushSubscriptionDB(Base):
+    """Web push subscription storage."""
+    
+    __tablename__ = "push_subscriptions"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, nullable=False, index=True)
+    endpoint = Column(Text, nullable=False)
+    p256dh_key = Column(Text, nullable=False)
+    auth_key = Column(Text, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    
+    def __repr__(self):
+        return f"<PushSubscription(id={self.id}, user={self.user_id})>"
+
+
+class NotificationPreferencesDB(Base):
+    """User notification preferences storage."""
+    
+    __tablename__ = "notification_preferences"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, nullable=False, unique=True, index=True)
+    email_notifications = Column(Boolean, default=True)
+    webpush_notifications = Column(Boolean, default=True)
+    email_address = Column(String(255), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    
+    def __repr__(self):
+        return f"<NotificationPreferences(user={self.user_id}, email={self.email_notifications}, push={self.webpush_notifications})>"
+
+
+class NotificationLogDB(Base):
+    """Notification delivery log."""
+    
+    __tablename__ = "notification_logs"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, nullable=False, index=True)
+    story_id = Column(String, ForeignKey("stories.id"), nullable=False, index=True)
+    episode_index = Column(Integer, nullable=False)
+    notification_type = Column(String(20), nullable=False)  # email, webpush, sms
+    status = Column(String(20), default="pending")  # pending, sent, failed, retrying
+    attempts = Column(Integer, default=1)
+    error_message = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    sent_at = Column(DateTime, nullable=True)
+    
+    def __repr__(self):
+        return f"<NotificationLog(id={self.id}, user={self.user_id}, type={self.notification_type}, status={self.status})>"
+
+
 # Database configuration
 DATABASE_URL = "sqlite:///./story_data/stories.db"
 

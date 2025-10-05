@@ -239,8 +239,6 @@ life_lessons:
 safety_guidelines:
   universal:
     - "No references to real people or defamatory content"
-    - "Family-friendly language and themes only"
-    - "Positive role models and healthy relationships"
     - "No graphic violence or frightening content"
     - "Inclusive and respectful representation"
   
@@ -256,3 +254,10 @@ safety_guidelines:
     - "Mild conflict and competition acceptable"
     - "Humor and wit encouraged"
     - "Complex character relationships allowed"
+  
+  adult_spicy:
+    - "Sophisticated themes allowed and no requirement to keep family-friendly"
+    - "Conflict and competition acceptable"
+    - "Humor and wit encouraged"
+    - "Complex character relationships allowed"
+    - "Explicit content in moderation and where appropriate is allowed"

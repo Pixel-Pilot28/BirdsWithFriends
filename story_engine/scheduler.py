@@ -253,16 +253,23 @@ class EpisodeScheduler:
     
     async def _send_episode_notification(self, story_id: str, episode_index: int):
         """Send notification that new episode is available."""
-        # This would integrate with notification service
-        # For now, just log it
         logger.info(f"📖 New episode published: Story {story_id}, Episode {episode_index}")
         
-        # In a real implementation, this would:
-        # - Send push notifications to subscribers
-        # - Update user feeds
-        # - Send email notifications
-        # - Post to social media
-        # - Update recommendation engines
+        try:
+            # Import here to avoid circular imports
+            from .notifications.notification_worker import notification_worker
+            
+            # Send notifications to all subscribed users
+            result = await notification_worker.send_episode_notifications(
+                story_id=story_id,
+                episode_index=episode_index
+            )
+            
+            logger.info(f"Notifications sent for episode {story_id}/{episode_index}: {result['notifications_sent']} users notified")
+            
+        except Exception as e:
+            logger.error(f"Failed to send notifications for episode {story_id}/{episode_index}: {e}")
+            # Don't re-raise - notification failure shouldn't prevent episode publishing
     
     def _calculate_next_release(
         self,

@@ -20,12 +20,17 @@ from pydantic import BaseModel, Field
 from .models import (
     StoryRequest, StoryResponse, Episode, StoryMetadata, 
     ContentFilter, validate_story_request, StoryScheduleRequest, 
-    ScheduleStatus, ReleaseFrequency
+    ScheduleStatus, ReleaseFrequency, PushSubscription, NotificationPreferences,
+    NotificationType, NotificationStatus
 )
-from .database import Base, Story, Episode as EpisodeDB, GenerationLog, get_db, engine, SessionLocal
+from .database import (
+    Base, Story, Episode as EpisodeDB, GenerationLog, get_db, engine, SessionLocal,
+    PushSubscriptionDB, NotificationPreferencesDB, NotificationLogDB
+)
 from .templates.manager import template_manager
 from .llm.adapter import llm_adapter
 from .scheduler import episode_scheduler
+from .notifications import email_sender, webpush_sender, notification_worker
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +98,13 @@ async def startup_event():
         logger.info("Episode scheduler started successfully")
     except Exception as e:
         logger.error(f"Failed to start episode scheduler: {e}")
+    
+    # Start notification worker
+    try:
+        await notification_worker.start()
+        logger.info("Notification worker started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start notification worker: {e}")
 
 
 @app.on_event("shutdown")
@@ -105,6 +117,12 @@ async def shutdown_event():
         logger.info("Episode scheduler stopped successfully")
     except Exception as e:
         logger.error(f"Error stopping episode scheduler: {e}")
+    
+    try:
+        await notification_worker.stop()
+        logger.info("Notification worker stopped successfully")
+    except Exception as e:
+        logger.error(f"Error stopping notification worker: {e}")
 
 
 @app.post("/stories", response_model=Dict[str, Any])
@@ -536,6 +554,612 @@ async def get_scheduler_status():
         raise HTTPException(status_code=500, detail="Failed to get scheduler status")
 
 
+# Ingest and Recognition endpoints
+
+class SampleRequest(BaseModel):
+    """Request for triggering sample capture."""
+    source_url: Optional[str] = Field(None, description="Optional custom source URL")
+    duration: Optional[int] = Field(None, description="Optional audio duration in seconds")
+
+
+class RecognitionEvent(BaseModel):
+    """Recognition event from audio/image services."""
+    species: str = Field(..., description="Detected species name")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Detection confidence")
+    timestamp: datetime = Field(..., description="Detection timestamp")
+    source_type: str = Field(..., description="audio or image")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional detection metadata")
+
+
+@app.post("/ingest/sample")
+async def trigger_sample_capture(request: SampleRequest = SampleRequest()):
+    """Trigger sampler to capture frame and audio (development endpoint)."""
+    try:
+        import httpx
+        
+        # Forward request to ingest service
+        async with httpx.AsyncClient() as client:
+            ingest_url = "http://localhost:8001/dev/ingest/test-sample"
+            params = {}
+            if request.source_url:
+                params["source_url"] = request.source_url
+            if request.duration:
+                params["duration"] = request.duration
+            
+            response = await client.post(ingest_url, params=params)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Ingest service error: {response.text}"
+                )
+    
+    except httpx.RequestError as e:
+        logger.error(f"Failed to connect to ingest service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Ingest service unavailable. Make sure it's running on port 8001."
+        )
+    except Exception as e:
+        logger.error(f"Sample capture failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/recognize")
+async def receive_recognition_event(event: RecognitionEvent):
+    """Receive recognition events from audio/image recognition services."""
+    try:
+        import httpx
+        
+        # Forward event to aggregator service
+        async with httpx.AsyncClient() as client:
+            aggregator_url = "http://localhost:8002/events"
+            
+            # Convert to aggregator expected format
+            event_data = {
+                "species": event.species,
+                "confidence": event.confidence,
+                "timestamp": event.timestamp.isoformat(),
+                "source": event.source_type,
+                "metadata": event.metadata
+            }
+            
+            response = await client.post(aggregator_url, json=event_data)
+            
+            if response.status_code == 200:
+                return {
+                    "success": True,
+                    "message": "Recognition event processed",
+                    "event_id": response.json().get("event_id"),
+                    "characters_updated": response.json().get("characters", [])
+                }
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Aggregator service error: {response.text}"
+                )
+    
+    except httpx.RequestError as e:
+        logger.error(f"Failed to connect to aggregator service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Aggregator service unavailable. Make sure it's running on port 8002."
+        )
+    except Exception as e:
+        logger.error(f"Recognition event processing failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/aggregator/summary")
+async def get_aggregation_summary(
+    window_minutes: int = Query(15, ge=1, le=60, description="Aggregation window in minutes")
+):
+    """Get aggregated summary for the last window."""
+    try:
+        import httpx
+        
+        # Forward request to aggregator service
+        async with httpx.AsyncClient() as client:
+            aggregator_url = f"http://localhost:8002/summary?window_minutes={window_minutes}"
+            
+            response = await client.get(aggregator_url)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Aggregator service error: {response.text}"
+                )
+    
+    except httpx.RequestError as e:
+        logger.error(f"Failed to connect to aggregator service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Aggregator service unavailable. Make sure it's running on port 8002."
+        )
+    except Exception as e:
+        logger.error(f"Failed to get aggregation summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Character management endpoints
+
+class CharacterUpdate(BaseModel):
+    """Update character archetype or name."""
+    archetype: Optional[str] = Field(None, description="New archetype")
+    name: Optional[str] = Field(None, description="New custom name")
+
+
+@app.get("/characters")
+async def list_characters(
+    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    species: Optional[str] = Query(None, description="Filter by species"),
+    active_only: bool = Query(True, description="Only return active characters"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum characters to return")
+):
+    """List characters with optional filtering."""
+    try:
+        import httpx
+        
+        # Forward request to aggregator service  
+        async with httpx.AsyncClient() as client:
+            params = {
+                "limit": limit,
+                "active_only": active_only
+            }
+            if user_id:
+                params["user_id"] = user_id
+            if species:
+                params["species"] = species
+            
+            aggregator_url = "http://localhost:8002/characters"
+            response = await client.get(aggregator_url, params=params)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Aggregator service error: {response.text}"
+                )
+    
+    except httpx.RequestError as e:
+        logger.error(f"Failed to connect to aggregator service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Aggregator service unavailable. Make sure it's running on port 8002."
+        )
+    except Exception as e:
+        logger.error(f"Failed to list characters: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/characters/{character_id}")
+async def update_character(character_id: str, update: CharacterUpdate):
+    """Update character archetype or name."""
+    try:
+        import httpx
+        
+        # Forward request to aggregator service
+        async with httpx.AsyncClient() as client:
+            aggregator_url = f"http://localhost:8002/characters/{character_id}"
+            
+            update_data = {}
+            if update.archetype:
+                update_data["archetype"] = update.archetype
+            if update.name:
+                update_data["name"] = update.name
+            
+            if not update_data:
+                raise HTTPException(status_code=400, detail="No updates provided")
+            
+            response = await client.patch(aggregator_url, json=update_data)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Aggregator service error: {response.text}"
+                )
+    
+    except httpx.RequestError as e:
+        logger.error(f"Failed to connect to aggregator service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Aggregator service unavailable. Make sure it's running on port 8002."
+        )
+    except Exception as e:
+        logger.error(f"Failed to update character: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# User management endpoints
+
+class UserCreate(BaseModel):
+    """Create new user."""
+    username: str = Field(..., min_length=3, max_length=50, description="Unique username")
+    email: str = Field(..., description="User email address")
+    preferences: Optional[Dict[str, Any]] = Field(default_factory=dict, description="User preferences")
+
+
+class UserUpdate(BaseModel):
+    """Update user information."""
+    email: Optional[str] = Field(None, description="Updated email address")
+    preferences: Optional[Dict[str, Any]] = Field(None, description="Updated preferences")
+
+
+class UserResponse(BaseModel):
+    """User information response."""
+    id: str = Field(..., description="User ID")
+    username: str = Field(..., description="Username")
+    email: str = Field(..., description="Email address")
+    preferences: Dict[str, Any] = Field(..., description="User preferences")
+    created_at: datetime = Field(..., description="Account creation time")
+    updated_at: datetime = Field(..., description="Last update time")
+
+
+@app.post("/users", response_model=Dict[str, Any])
+async def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    """Create a new user account."""
+    try:
+        # Check if username already exists
+        existing_user = db.query(NotificationPreferencesDB).filter(
+            NotificationPreferencesDB.user_id == user.username
+        ).first()
+        
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        
+        # Create user (using notification preferences as user storage for now)
+        user_record = NotificationPreferencesDB(
+            user_id=user.username,
+            email_address=user.email,
+            email_notifications=user.preferences.get("email_notifications", True),
+            webpush_notifications=user.preferences.get("webpush_notifications", True)
+        )
+        
+        db.add(user_record)
+        db.commit()
+        
+        logger.info(f"Created user {user.username}")
+        
+        return {
+            "id": user.username,
+            "username": user.username,
+            "email": user.email,
+            "created_at": user_record.created_at.isoformat(),
+            "message": "User created successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create user: {e}")
+        raise HTTPException(status_code=500, detail="User creation failed")
+
+
+@app.get("/users/{user_id}", response_model=Dict[str, Any])
+async def get_user(user_id: str, db: Session = Depends(get_db)):
+    """Get user information."""
+    user = db.query(NotificationPreferencesDB).filter(
+        NotificationPreferencesDB.user_id == user_id
+    ).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "id": user.user_id,
+        "username": user.user_id,
+        "email": user.email_address,
+        "preferences": {
+            "email_notifications": user.email_notifications,
+            "webpush_notifications": user.webpush_notifications
+        },
+        "created_at": user.created_at.isoformat(),
+        "updated_at": user.updated_at.isoformat()
+    }
+
+
+@app.patch("/users/{user_id}/preferences")
+async def update_user_preferences(
+    user_id: str, 
+    preferences: Dict[str, Any], 
+    db: Session = Depends(get_db)
+):
+    """Update user preferences."""
+    user = db.query(NotificationPreferencesDB).filter(
+        NotificationPreferencesDB.user_id == user_id
+    ).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update notification preferences
+    if "email_notifications" in preferences:
+        user.email_notifications = preferences["email_notifications"]
+    if "webpush_notifications" in preferences:
+        user.webpush_notifications = preferences["webpush_notifications"]
+    if "email_address" in preferences:
+        user.email_address = preferences["email_address"]
+    
+    user.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    
+    logger.info(f"Updated preferences for user {user_id}")
+    
+    return {
+        "success": True,
+        "message": "Preferences updated successfully",
+        "user_id": user_id,
+        "updated_preferences": preferences
+    }
+
+
+# Notification endpoints
+
+@app.post("/notifications/subscribe")
+async def subscribe_to_push_notifications(
+    subscription: PushSubscription,
+    db: Session = Depends(get_db)
+):
+    """Subscribe to web push notifications."""
+    try:
+        # Remove existing subscription for same endpoint (if any)
+        existing = db.query(PushSubscriptionDB).filter(
+            and_(
+                PushSubscriptionDB.user_id == subscription.user_id,
+                PushSubscriptionDB.endpoint == subscription.endpoint
+            )
+        ).first()
+        
+        if existing:
+            db.delete(existing)
+        
+        # Create new subscription
+        new_subscription = PushSubscriptionDB(
+            user_id=subscription.user_id,
+            endpoint=subscription.endpoint,
+            p256dh_key=subscription.p256dh_key,
+            auth_key=subscription.auth_key
+        )
+        
+        db.add(new_subscription)
+        db.commit()
+        
+        logger.info(f"Web push subscription created for user {subscription.user_id}")
+        
+        return {
+            "success": True,
+            "message": "Successfully subscribed to push notifications",
+            "user_id": subscription.user_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create push subscription: {e}")
+        raise HTTPException(status_code=500, detail="Subscription failed")
+
+
+@app.get("/notifications/vapid-public-key")
+async def get_vapid_public_key():
+    """Get VAPID public key for web push subscriptions."""
+    return {
+        "publicKey": webpush_sender.get_vapid_public_key()
+    }
+
+
+@app.post("/notifications/preferences")
+async def set_notification_preferences(
+    preferences: NotificationPreferences,
+    db: Session = Depends(get_db)
+):
+    """Set user notification preferences."""
+    try:
+        # Check if preferences already exist
+        existing = db.query(NotificationPreferencesDB).filter(
+            NotificationPreferencesDB.user_id == preferences.user_id
+        ).first()
+        
+        if existing:
+            # Update existing preferences
+            existing.email_notifications = preferences.email_notifications
+            existing.webpush_notifications = preferences.webpush_notifications
+            existing.email_address = preferences.email_address
+            existing.updated_at = datetime.now(timezone.utc)
+        else:
+            # Create new preferences
+            new_prefs = NotificationPreferencesDB(
+                user_id=preferences.user_id,
+                email_notifications=preferences.email_notifications,
+                webpush_notifications=preferences.webpush_notifications,
+                email_address=preferences.email_address
+            )
+            db.add(new_prefs)
+        
+        db.commit()
+        
+        logger.info(f"Notification preferences updated for user {preferences.user_id}")
+        
+        return {
+            "success": True,
+            "message": "Notification preferences updated",
+            "user_id": preferences.user_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to update notification preferences: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update preferences")
+
+
+@app.get("/notifications/preferences/{user_id}")
+async def get_notification_preferences(user_id: str, db: Session = Depends(get_db)):
+    """Get user notification preferences."""
+    preferences = db.query(NotificationPreferencesDB).filter(
+        NotificationPreferencesDB.user_id == user_id
+    ).first()
+    
+    if not preferences:
+        # Return default preferences
+        return {
+            "user_id": user_id,
+            "email_notifications": True,
+            "webpush_notifications": True,
+            "email_address": None
+        }
+    
+    return {
+        "user_id": preferences.user_id,
+        "email_notifications": preferences.email_notifications,
+        "webpush_notifications": preferences.webpush_notifications,
+        "email_address": preferences.email_address
+    }
+
+
+@app.delete("/notifications/unsubscribe/{user_id}")
+async def unsubscribe_all_notifications(user_id: str, db: Session = Depends(get_db)):
+    """Unsubscribe user from all notifications."""
+    try:
+        # Remove all push subscriptions
+        push_subscriptions = db.query(PushSubscriptionDB).filter(
+            PushSubscriptionDB.user_id == user_id
+        ).all()
+        
+        for subscription in push_subscriptions:
+            db.delete(subscription)
+        
+        # Disable notification preferences
+        preferences = db.query(NotificationPreferencesDB).filter(
+            NotificationPreferencesDB.user_id == user_id
+        ).first()
+        
+        if preferences:
+            preferences.email_notifications = False
+            preferences.webpush_notifications = False
+            preferences.updated_at = datetime.now(timezone.utc)
+        else:
+            # Create disabled preferences
+            new_prefs = NotificationPreferencesDB(
+                user_id=user_id,
+                email_notifications=False,
+                webpush_notifications=False
+            )
+            db.add(new_prefs)
+        
+        db.commit()
+        
+        logger.info(f"User {user_id} unsubscribed from all notifications")
+        
+        return {
+            "success": True,
+            "message": "Successfully unsubscribed from all notifications",
+            "user_id": user_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to unsubscribe user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Unsubscribe failed")
+
+
+@app.post("/notifications/test/email/{user_id}")
+async def send_test_email(user_id: str, db: Session = Depends(get_db)):
+    """Send test email notification."""
+    try:
+        # Get user preferences
+        preferences = db.query(NotificationPreferencesDB).filter(
+            NotificationPreferencesDB.user_id == user_id
+        ).first()
+        
+        if not preferences or not preferences.email_address:
+            raise HTTPException(status_code=400, detail="No email address found for user")
+        
+        # Send test email
+        result = await email_sender.send_test_email(preferences.email_address)
+        
+        return {
+            "success": result["success"],
+            "message": "Test email sent" if result["success"] else "Test email failed",
+            "details": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Test email failed for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Test email failed")
+
+
+@app.post("/notifications/test/webpush/{user_id}")
+async def send_test_webpush(user_id: str, db: Session = Depends(get_db)):
+    """Send test web push notification."""
+    try:
+        # Get user push subscriptions
+        subscriptions = db.query(PushSubscriptionDB).filter(
+            PushSubscriptionDB.user_id == user_id
+        ).all()
+        
+        if not subscriptions:
+            raise HTTPException(status_code=400, detail="No push subscriptions found for user")
+        
+        results = []
+        
+        for subscription in subscriptions:
+            subscription_info = {
+                "endpoint": subscription.endpoint,
+                "keys": {
+                    "p256dh": subscription.p256dh_key,
+                    "auth": subscription.auth_key
+                }
+            }
+            
+            result = await webpush_sender.send_test_notification(subscription_info)
+            results.append(result)
+        
+        success_count = sum(1 for r in results if r["success"])
+        
+        return {
+            "success": success_count > 0,
+            "message": f"Test push sent to {success_count}/{len(subscriptions)} subscriptions",
+            "details": results
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Test web push failed for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Test web push failed")
+
+
+@app.get("/notifications/logs/{user_id}")
+async def get_notification_logs(
+    user_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """Get notification delivery logs for user."""
+    logs = db.query(NotificationLogDB).filter(
+        NotificationLogDB.user_id == user_id
+    ).order_by(NotificationLogDB.created_at.desc()).limit(limit).all()
+    
+    return [
+        {
+            "id": log.id,
+            "story_id": log.story_id,
+            "episode_index": log.episode_index,
+            "notification_type": log.notification_type,
+            "status": log.status,
+            "attempts": log.attempts,
+            "error_message": log.error_message,
+            "created_at": log.created_at.isoformat(),
+            "sent_at": log.sent_at.isoformat() if log.sent_at else None
+        }
+        for log in logs
+    ]
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -545,7 +1169,9 @@ async def health_check():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "templates_loaded": len(template_manager.templates),
         "llm_adapter": "ready",
-        "scheduler_running": episode_scheduler._running if episode_scheduler else False
+        "scheduler_running": episode_scheduler._running if episode_scheduler else False,
+        "notification_worker_running": notification_worker.running if notification_worker else False,
+        "vapid_public_key_available": bool(webpush_sender.public_key_base64) if webpush_sender else False
     }
 
 

@@ -94,6 +94,11 @@ class UserPreferences(BaseModel):
     include_morals: bool = Field(True, description="Whether to include life lessons")
     content_rating: Literal["G", "PG", "PG-13"] = Field("G", description="Content rating")
     
+    # Notification preferences
+    notify_email: bool = Field(True, description="Send email notifications for new episodes")
+    notify_webpush: bool = Field(True, description="Send web push notifications for new episodes")
+    email_address: Optional[str] = Field(None, description="Email address for notifications")
+    
     @validator('age_group')
     def validate_age_group(cls, v):
         """Validate age group format."""
@@ -288,6 +293,66 @@ class ScheduleStatus(BaseModel):
     next_release_at: Optional[datetime] = Field(None, description="Next scheduled release")
     release_frequency: ReleaseFrequency = Field(..., description="Release frequency")
     timezone: str = Field(..., description="User timezone")
+
+
+class NotificationType(str, Enum):
+    """Notification delivery types."""
+    EMAIL = "email"
+    WEBPUSH = "webpush"
+    SMS = "sms"  # Future enhancement
+
+
+class NotificationStatus(str, Enum):
+    """Notification delivery status."""
+    PENDING = "pending"
+    SENT = "sent" 
+    FAILED = "failed"
+    RETRYING = "retrying"
+
+
+class PushSubscription(BaseModel):
+    """Web push subscription data."""
+    user_id: str = Field(..., description="User identifier")
+    endpoint: str = Field(..., description="Push service endpoint URL")
+    p256dh_key: str = Field(..., description="Public key for encryption")
+    auth_key: str = Field(..., description="Authentication secret")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Subscription creation time")
+
+
+class NotificationPreferences(BaseModel):
+    """User notification preferences."""
+    user_id: str = Field(..., description="User identifier") 
+    email_notifications: bool = Field(True, description="Enable email notifications")
+    webpush_notifications: bool = Field(True, description="Enable web push notifications")
+    email_address: Optional[str] = Field(None, description="Email address for notifications")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Preference creation time")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last preference update")
+
+
+class NotificationRequest(BaseModel):
+    """Request to send a notification."""
+    user_id: str = Field(..., description="Target user identifier")
+    story_id: str = Field(..., description="Story identifier")
+    episode_index: int = Field(..., description="Episode number") 
+    notification_type: NotificationType = Field(..., description="Type of notification to send")
+    title: str = Field(..., description="Notification title")
+    message: str = Field(..., description="Notification message")
+    link_url: Optional[str] = Field(None, description="Optional link for notification")
+
+
+class NotificationLog(BaseModel):
+    """Log entry for notification attempts."""
+    id: Optional[int] = Field(None, description="Log entry ID")
+    user_id: str = Field(..., description="Target user")
+    story_id: str = Field(..., description="Related story") 
+    episode_index: int = Field(..., description="Episode number")
+    notification_type: NotificationType = Field(..., description="Notification channel used")
+    status: NotificationStatus = Field(NotificationStatus.PENDING, description="Delivery status")
+    attempts: int = Field(1, description="Number of delivery attempts")
+    error_message: Optional[str] = Field(None, description="Error details if failed")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Initial attempt time")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last attempt time")
+    sent_at: Optional[datetime] = Field(None, description="Successful delivery time")
 
 
 def sanitize_content(text: str, content_filter: ContentFilter) -> str:
