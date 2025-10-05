@@ -1,0 +1,337 @@
+version: '3.8'
+
+services:
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: birds-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+      - VITE_STORY_ENGINE_URL=${VITE_STORY_ENGINE_URL:-http://localhost:8005}
+      - VITE_AGGREGATOR_URL=${VITE_AGGREGATOR_URL:-http://localhost:8004}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - birds-network
+
+  # Database Services
+  postgres:
+    image: postgres:15-alpine
+    container_name: birds-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-birds}
+      - POSTGRES_USER=${POSTGRES_USER:-birds_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-birds_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - birds-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: birds-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - birds-network
+
+  # Backend Services
+  sampler:
+    build:
+      context: .
+      dockerfile: services/ingest/Dockerfile
+      args:
+        - SERVICE=ingest
+    container_name: birds-sampler
+    ports:
+      - "8001:8000"
+    environment:
+      - CORNELL_CAM_URL=${CORNELL_CAM_URL:-https://www.youtube.com/watch?v=x10vL6_47Dw}
+      - SAMPLE_INTERVAL=${SAMPLE_INTERVAL:-10}
+      - AUDIO_DURATION=${AUDIO_DURATION:-5}
+      - OUTPUT_DIR=/app/output
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-birds_user}:${POSTGRES_PASSWORD:-birds_password}@postgres:5432/${POSTGRES_DB:-birds}}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=${DEBUG:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./output:/app/output
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - birds-network
+
+  audio-recognizer:
+    build:
+      context: .
+      dockerfile: services/recognition/Dockerfile.audio
+      args:
+        - SERVICE=recognition/audio
+    container_name: birds-audio-recognizer
+    ports:
+      - "8002:8002"
+    environment:
+      - MIN_CONFIDENCE=${MIN_CONFIDENCE:-0.6}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-birds_user}:${POSTGRES_PASSWORD:-birds_password}@postgres:5432/${POSTGRES_DB:-birds}}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - HOST=0.0.0.0
+      - PORT=8002
+      - DEBUG=${DEBUG:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SERVICE_NAME=audio-recognizer
+    volumes:
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - birds-network
+
+  image-recognizer:
+    build:
+      context: .
+      dockerfile: services/recognition/Dockerfile.image
+      args:
+        - SERVICE=recognition/image
+    container_name: birds-image-recognizer
+    ports:
+      - "8003:8003"
+    environment:
+      - MIN_CONFIDENCE=${MIN_CONFIDENCE:-0.6}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-birds_user}:${POSTGRES_PASSWORD:-birds_password}@postgres:5432/${POSTGRES_DB:-birds}}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - HOST=0.0.0.0
+      - PORT=8003
+      - DEBUG=${DEBUG:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SERVICE_NAME=image-recognizer
+    volumes:
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - birds-network
+
+  aggregator:
+    build:
+      context: .
+      dockerfile: services/aggregator/Dockerfile
+      args:
+        - SERVICE=aggregator
+    container_name: birds-aggregator
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-birds_user}:${POSTGRES_PASSWORD:-birds_password}@postgres:5432/${POSTGRES_DB:-birds}}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - HOST=0.0.0.0
+      - PORT=8004
+      - DEBUG=${DEBUG:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SERVICE_NAME=aggregator
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./data/aggregator:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      audio-recognizer:
+        condition: service_healthy
+      image-recognizer:
+        condition: service_healthy
+    networks:
+      - birds-network
+
+  story-engine:
+    build:
+      context: .
+      dockerfile: services/story-engine/Dockerfile
+      args:
+        - SERVICE=story_engine
+    container_name: birds-story-engine
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-birds_user}:${POSTGRES_PASSWORD:-birds_password}@postgres:5432/${POSTGRES_DB:-birds}}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - HOST=0.0.0.0
+      - PORT=8005
+      - DEBUG=${DEBUG:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SERVICE_NAME=story-engine
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - WEBPUSH_VAPID_PUBLIC_KEY=${WEBPUSH_VAPID_PUBLIC_KEY:-}
+      - WEBPUSH_VAPID_PRIVATE_KEY=${WEBPUSH_VAPID_PRIVATE_KEY:-}
+      - WEBPUSH_VAPID_EMAIL=${WEBPUSH_VAPID_EMAIL:-}
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./data/stories:/app/story_data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      aggregator:
+        condition: service_healthy
+    networks:
+      - birds-network
+
+  # Monitoring and Management
+  nginx:
+    image: nginx:alpine
+    container_name: birds-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./config/ssl:/etc/nginx/ssl:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - frontend
+      - sampler
+      - aggregator
+      - story-engine
+    networks:
+      - birds-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: birds-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - birds-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: birds-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - birds-network
+
+# Volume definitions
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# Network definitions
+networks:
+  birds-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

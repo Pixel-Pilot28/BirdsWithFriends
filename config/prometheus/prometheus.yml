@@ -1,0 +1,70 @@
+# Prometheus configuration for Birds with Friends monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Rule files
+rule_files:
+  - "rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Birds with Friends services
+  - job_name: 'birds-sampler'
+    static_configs:
+      - targets: ['birds-sampler:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'birds-audio-recognizer'
+    static_configs:
+      - targets: ['birds-audio-recognizer:8002']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'birds-image-recognizer'
+    static_configs:
+      - targets: ['birds-image-recognizer:8003']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'birds-aggregator'
+    static_configs:
+      - targets: ['birds-aggregator:8004']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'birds-story-engine'
+    static_configs:
+      - targets: ['birds-story-engine:8005']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Infrastructure services
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    metrics_path: '/metrics'
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: '/metrics'
+
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:80']
+    metrics_path: '/nginx_status'
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
