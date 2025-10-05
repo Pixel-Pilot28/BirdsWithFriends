@@ -71,6 +71,79 @@ services:
       retries: 3
       start_period: 20s
 
+  aggregator:
+    build:
+      context: .
+      dockerfile: aggregator/Dockerfile
+    container_name: birds-aggregator
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./aggregator.db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - HOST=0.0.0.0
+      - PORT=8004
+      - DEBUG=${DEBUG:-true}
+      - SERVICE_NAME=aggregator
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./aggregator_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - audio-recognizer
+      - image-recognizer
+
+  story-engine:
+    build:
+      context: .
+      dockerfile: story_engine/Dockerfile
+    container_name: birds-story-engine
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=${STORY_DATABASE_URL:-sqlite:///./story_data/stories.db}
+      - HOST=0.0.0.0
+      - PORT=8005
+      - DEBUG=${DEBUG:-true}
+      - SERVICE_NAME=story-engine
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./story_data:/app/story_data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - aggregator
+
+  redis:
+    image: redis:7-alpine
+    container_name: birds-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis_data:
+    driver: local
+
 networks:
   default:
     name: birds-network

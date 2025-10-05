@@ -1,0 +1,85 @@
+# Bird Species to Character Archetype Mapping
+# This file maps bird species to personality archetypes for storytelling
+
+species_archetypes:
+  # Cardinals and allies - Bold personalities
+  "Northern Cardinal": "bold gossip"
+  "Pyrrhuloxia": "desert sage"
+  
+  # Jays and crows - Intelligent troublemakers
+  "Blue Jay": "clever troublemaker"
+  "Steller's Jay": "mountain trickster"
+  "American Crow": "wise observer"
+  "Common Grackle": "street-smart survivor"
+  
+  # Robins and thrushes - Friendly neighbors
+  "American Robin": "cheerful neighbor"
+  "Eastern Bluebird": "gentle optimist"
+  "Wood Thrush": "forest philosopher"
+  
+  # Sparrows - Humble workers
+  "House Sparrow": "busy worker"
+  "White-throated Sparrow": "quiet musician"
+  "Song Sparrow": "local storyteller"
+  
+  # Finches - Social butterflies
+  "American Goldfinch": "sunny socialite"
+  "House Finch": "friendly chatterbox"
+  "Purple Finch": "sophisticated visitor"
+  
+  # Woodpeckers - Industrious builders
+  "Downy Woodpecker": "persistent craftsman"
+  "Red-bellied Woodpecker": "energetic builder"
+  "Pileated Woodpecker": "master carpenter"
+  
+  # Blackbirds - Dramatic performers
+  "Red-winged Blackbird": "territorial performer"
+  "European Starling": "versatile mimic"
+  "Brown-headed Cowbird": "mysterious wanderer"
+  
+  # Doves and pigeons - Peaceful mediators
+  "Mourning Dove": "gentle peacekeeper"
+  "Rock Pigeon": "urban survivor"
+  "Eurasian Collared-Dove": "polite newcomer"
+  
+  # Chickadees and nuthatches - Acrobatic entertainers
+  "Black-capped Chickadee": "acrobatic entertainer"
+  "White-breasted Nuthatch": "upside-down comedian"
+  "Tufted Titmouse": "curious explorer"
+  
+  # Warblers - Energetic travelers
+  "Yellow Warbler": "energetic traveler"
+  "American Redstart": "flashy dancer"
+  "Common Yellowthroat": "secretive spy"
+
+archetype_descriptions:
+  "bold gossip": "Confident and social, always ready with the latest news from around the neighborhood."
+  "desert sage": "Wise and adapted, sharing ancient knowledge of survival in harsh lands."
+  "clever troublemaker": "Intelligent and mischievous, always finding creative solutions (and problems)."
+  "mountain trickster": "Playful and resourceful, using wit and cunning in high places."
+  "wise observer": "Thoughtful and perceptive, watching the world with knowing eyes."
+  "street-smart survivor": "Adaptable and tough, thriving in urban environments."
+  "cheerful neighbor": "Friendly and reliable, the first to greet you in the morning."
+  "gentle optimist": "Soft-spoken and hopeful, always seeing the bright side."
+  "forest philosopher": "Contemplative and deep, pondering life's mysteries among the trees."
+  "busy worker": "Industrious and practical, always building or gathering."
+  "quiet musician": "Talented and modest, sharing beautiful songs when the mood strikes."
+  "local storyteller": "Knowledgeable and engaging, full of tales about the area."
+  "sunny socialite": "Bright and gregarious, bringing joy to every gathering."
+  "friendly chatterbox": "Talkative and warm, never meeting a stranger."
+  "sophisticated visitor": "Refined and cultured, gracing us with their presence."
+  "persistent craftsman": "Skilled and determined, perfecting their art through repetition."
+  "energetic builder": "Dynamic and creative, always working on the next project."
+  "master carpenter": "Expert and powerful, creating impressive architectural works."
+  "territorial performer": "Bold and dramatic, defending their stage with passion."
+  "versatile mimic": "Talented and adaptable, learning new tricks constantly."
+  "mysterious wanderer": "Enigmatic and unpredictable, following their own path."
+  "gentle peacekeeper": "Calm and soothing, bringing tranquility to tense situations."
+  "urban survivor": "Hardy and practical, making the best of city life."
+  "polite newcomer": "Courteous and well-mannered, fitting in while maintaining their identity."
+  "acrobatic entertainer": "Playful and athletic, delighting audiences with their antics."
+  "upside-down comedian": "Quirky and amusing, finding humor in unique perspectives."
+  "curious explorer": "Inquisitive and adventurous, always investigating something new."
+  "energetic traveler": "Restless and vibrant, bringing stories from distant places."
+  "flashy dancer": "Graceful and showy, expressing themselves through movement."
+  "secretive spy": "Elusive and observant, gathering intelligence from the shadows."

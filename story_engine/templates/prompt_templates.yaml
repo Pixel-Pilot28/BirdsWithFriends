@@ -1,0 +1,258 @@
+# Story Generation Prompt Templates
+# Version-controlled templates for different age groups and story types
+
+templates:
+  # Child-appropriate templates with life lessons
+  child_friendship:
+    name: "child_friendship"
+    age_group: "child"
+    story_type: "Friendship"
+    system_message: |
+      You are a friendly storyteller creating wholesome bird stories for children.
+      
+      MANDATORY REQUIREMENTS:
+      - Keep language simple and age-appropriate
+      - Include clear life lessons about {life_lessons}
+      - Use short sentences (max 15 words each)
+      - No violence, scary content, or adult themes
+      - Characters should be kind and helpful
+      - Stories should have happy endings
+      - Include dialogue that children can understand
+      - Maximum word count: {max_words}
+      
+      SAFETY GUIDELINES:
+      - Family-friendly content only
+      - No references to real people
+      - Positive role models only
+      - Educational when possible
+    
+    user_template: |
+      Create a heartwarming story about these bird characters at the Cornell Lab feeder.
+      
+      CHARACTERS:
+      {characters}
+      
+      SPECIES ACTIVITY:
+      {species_counts}
+      
+      LIFE LESSONS TO INCLUDE:
+      {life_lessons}
+      
+      STORY REQUIREMENTS:
+      - Target age: {age_instructions}
+      - Length: {length} ({word_count} words)
+      - Style: Simple, educational, and fun
+      - Include the lesson about: {life_lessons}
+      
+      Example opening: "Once upon a time at the bird feeder, there lived some very special friends..."
+      
+      Write a complete story that teaches children about {life_lessons} through the adventures of these bird characters.
+    
+    example_stories:
+      - |
+        Once upon a time at the Cornell Lab bird feeder, there lived a little Northern Cardinal named Ruby. Ruby had bright red feathers and loved to sing.
+        
+        One day, Ruby saw a new Blue Jay named Jay who looked sad. "Why are you sad?" asked Ruby kindly.
+        
+        "I'm new here and don't have any friends," said Jay quietly.
+        
+        Ruby smiled. "I'll be your friend! Sharing friendship makes everyone happy."
+        
+        Ruby showed Jay where to find the best seeds. Soon, more birds came to meet Jay. Everyone shared their seeds and played together.
+        
+        "Thank you for being kind to me," said Jay. "Now I have many friends!"
+        
+        Ruby learned that when we share friendship with others, we all feel happy. And Jay learned that asking for help is okay.
+        
+        From that day on, all the birds at the feeder were the very best of friends.
+    
+    safety_instructions:
+      - "No scary predators or dangerous situations"
+      - "All conflicts must resolve peacefully"
+      - "Characters should model good behavior"
+      - "Use positive, encouraging language"
+    
+    constraints:
+      max_words: 200
+      min_words: 100
+      sentence_length: 15
+      reading_level: "grade_2"
+
+  # Adult sophisticated templates
+  adult_drama:
+    name: "adult_drama"
+    age_group: "adult"  
+    story_type: "Real Housewives"
+    system_message: |
+      You are a witty storyteller creating entertaining bird drama stories for adult audiences.
+      
+      REQUIREMENTS:
+      - Sophisticated vocabulary and complex sentences allowed
+      - Create engaging character dynamics and conflicts
+      - Include humor and wit appropriate for adults
+      - No explicit content but mature themes okay
+      - Can include mild conflict and competition
+      - Maximum word count: {max_words}
+      
+      SAFETY GUIDELINES:
+      - No defamation of real people
+      - Keep content family-friendly overall
+      - Avoid excessive violence
+      - No inappropriate language
+    
+    user_template: |
+      Create an engaging story about bird drama and social dynamics at the Cornell Lab feeder.
+      
+      CHARACTERS:
+      {characters}
+      
+      SPECIES ACTIVITY:
+      {species_counts}
+      
+      STORY STYLE: {story_type}
+      CHARACTER ATTRIBUTES: {attributes}
+      
+      REQUIREMENTS:
+      - Target audience: Adults
+      - Length: {length} ({word_count} words)  
+      - Include social dynamics, mild drama, and humor
+      - Characters should have distinct personalities
+      - Create engaging dialogue and interactions
+      
+      Write a complete story that captures the social drama and personalities of these bird characters.
+    
+    example_stories:
+      - |
+        The morning gossip session at the Cornell Lab feeder was already in full swing when Scarlett, the self-appointed queen bee Northern Cardinal, arrived fashionably late.
+        
+        "Well, well," she chirped, eyeing the Blue Jay contingent with practiced disdain. "I see the troublemakers have already claimed the premium perch."
+        
+        Jake, the clever Blue Jay with a reputation for stirring things up, fluffed his crest dramatically. "Oh, Scarlett darling, we were just discussing your... shall we say, territorial tendencies?"
+        
+        The American Robins watched the exchange with barely concealed amusement. Robin, the group's unofficial mediator, stepped forward. "Now, now, there's plenty of seed for everyone."
+        
+        But Scarlett wasn't done. "Some of us have standards about our dining companions," she sniffed, deliberately positioning herself at the most exclusive feeding spot.
+        
+        Jake laughed, a sound like wind chimes in a storm. "Standards? That's rich, coming from someone who was literally caught eating from the ground yesterday."
+        
+        The feeder fell silent. Even the chickadees stopped their constant chatter. Scarlett's red feathers seemed to burn brighter with indignation.
+        
+        "At least I don't steal shiny objects from innocent families," she retorted, referencing Jake's well-known collection habits.
+        
+        And so began another day of delicious drama at the Cornell Lab feeder, where the birds were beautiful, the seeds were plentiful, and the gossip was absolutely divine.
+    
+    safety_instructions:
+      - "Keep conflicts light and humorous"  
+      - "No cruel or mean-spirited content"
+      - "Focus on entertainment value"
+      - "Maintain clever, witty tone"
+    
+    constraints:
+      max_words: 500
+      min_words: 300
+      reading_level: "adult"
+      humor_level: "high"
+
+  # Educational nature documentary style
+  educational_nature:
+    name: "educational_nature"
+    age_group: "school_age"
+    story_type: "Educational"
+    system_message: |
+      You are an educational storyteller creating informative yet engaging stories about bird behavior.
+      
+      REQUIREMENTS:
+      - Include accurate bird behavior information
+      - Educational content woven into narrative
+      - Age-appropriate scientific facts
+      - Maintain story engagement while teaching
+      - Maximum word count: {max_words}
+      
+      SAFETY GUIDELINES:
+      - Scientifically accurate information only
+      - Family-friendly educational content
+      - No frightening predator scenarios for young audiences
+    
+    user_template: |
+      Create an educational story that teaches about bird behavior and characteristics.
+      
+      CHARACTERS:
+      {characters}
+      
+      SPECIES ACTIVITY:
+      {species_counts}
+      
+      EDUCATIONAL FOCUS:
+      - Bird behaviors and characteristics
+      - Habitat and feeding preferences  
+      - Social structures and communication
+      - Target age: {age_instructions}
+      - Length: {length} ({word_count} words)
+      
+      Include real facts about these bird species while telling an engaging story.
+    
+    example_stories:
+      - |
+        At the Cornell Lab feeder, Dr. Ruby the Northern Cardinal was conducting her daily research on optimal seed selection techniques.
+        
+        "Fascinating!" she observed, cracking a sunflower seed with her powerful, cone-shaped beak. "This beak design is perfectly adapted for seed cracking."
+        
+        Her colleague, Professor Jay the Blue Jay, swooped down with his characteristic bouncing flight pattern. "Good morning, Ruby! I've been studying caching behavior again." Blue Jays are known for their remarkable ability to remember where they hide thousands of seeds.
+        
+        "Did you know," Jay announced to the gathered birds, "that we Blue Jays can remember up to 5,000 hiding places? It's like having a natural GPS system!"
+        
+        Young Robin the American Robin tilted her head, displaying the classic robin listening posture. "I'm using my excellent hearing to locate earthworms in the soil," she explained. "We robins can actually hear worms moving underground!"
+        
+        The birds realized that each species had evolved special abilities. Cardinals have strong beaks for seeds, Blue Jays have amazing memories, and Robins have super hearing.
+        
+        "We're all perfectly designed for our lifestyles," concluded Ruby. "Isn't nature amazing?"
+    
+    constraints:
+      max_words: 400
+      min_words: 250
+      educational_facts: 3
+      reading_level: "grade_4"
+
+# Age-specific instruction templates
+age_instructions:
+  child: "Ages 3-8: Use simple words, short sentences, and clear morals"
+  toddler: "Ages 2-4: Very simple language, repetition, basic concepts"
+  preschool: "Ages 4-6: Simple stories with clear lessons and happy endings"
+  school_age: "Ages 6-12: Educational content with engaging narratives"
+  teen: "Ages 13-17: More complex themes but age-appropriate content"
+  adult: "Adult audience: Sophisticated language and mature themes allowed"
+  
+# Life lesson templates
+life_lessons:
+  sharing: "the importance of sharing with others and being generous"
+  kindness: "being kind and helpful to everyone you meet"
+  friendship: "how to be a good friend and make new friends"
+  honesty: "telling the truth even when it's hard"
+  perseverance: "never giving up when things get difficult"
+  teamwork: "working together to solve problems"
+  respect: "treating others with respect and understanding differences"
+  responsibility: "taking care of your duties and promises"
+  courage: "being brave when facing new challenges"
+  empathy: "understanding and caring about others' feelings"
+
+# Content safety templates
+safety_guidelines:
+  universal:
+    - "No references to real people or defamatory content"
+    - "Family-friendly language and themes only"
+    - "Positive role models and healthy relationships"
+    - "No graphic violence or frightening content"
+    - "Inclusive and respectful representation"
+  
+  child_specific:
+    - "Simple language appropriate for young children"
+    - "No scary predators or dangerous situations"
+    - "All conflicts resolve peacefully and positively"  
+    - "Clear moral lessons woven naturally into story"
+    - "Characters model good behavior and values"
+  
+  adult_specific:
+    - "Sophisticated themes allowed but keep family-friendly"
+    - "Mild conflict and competition acceptable"
+    - "Humor and wit encouraged"
+    - "Complex character relationships allowed"
