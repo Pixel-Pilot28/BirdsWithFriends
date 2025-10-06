@@ -15,9 +15,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .database import get_db, engine
+from .database import get_db, engine, SessionLocal
 from .character_manager import character_manager
 from .models import Character, RecognitionEventDB, AggregationSummary
+from shared.database.models import RecognitionEvent, Snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -460,6 +461,45 @@ async def get_system_stats(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/snapshots")
+async def get_snapshots(limit: int = 10):
+    """Get recent snapshots from recognition events."""
+    try:
+        db = SessionLocal()
+        
+        # Get recent recognition events with snapshots
+        events = db.query(RecognitionEvent)\
+            .join(Snapshot)\
+            .order_by(RecognitionEvent.timestamp.desc())\
+            .limit(limit)\
+            .all()
+        
+        snapshots = []
+        for event in events:
+            for snapshot in event.snapshots:
+                snapshots.append({
+                    "id": str(snapshot.id),
+                    "image_url": snapshot.url,
+                    "audio_url": None,  # Add audio URL if available
+                    "timestamp": event.timestamp.isoformat(),
+                    "detections": [{
+                        "species": event.species,
+                        "confidence": event.confidence,
+                        "bounding_box": None  # Add if bounding box data available
+                    }] if event.species else []
+                })
+        
+        return snapshots[:limit]
+    
+    except Exception as e:
+        logger.error(f"Failed to get snapshots: {e}")
+        # Return empty list if no data available yet
+        return []
+    finally:
+        if 'db' in locals():
+            db.close()
 
 
 @app.get("/health")

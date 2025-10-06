@@ -12,9 +12,11 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    host: '127.0.0.1',
+    strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8005',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, options) => {
@@ -24,7 +26,7 @@ export default defineConfig({
               'Content-Type': 'application/json',
             });
             res.end(JSON.stringify({ 
-              detail: 'Backend service is not available. Please start the backend server on port 8000.',
+              detail: 'Backend service is not available. Please start the backend server on port 8005.',
               error_code: 'SERVICE_UNAVAILABLE' 
             }));
           });

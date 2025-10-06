@@ -30,7 +30,9 @@ from .database import (
 from .templates.manager import template_manager
 from .llm.adapter import llm_adapter
 from .scheduler import episode_scheduler
-from .notifications import email_sender, webpush_sender, notification_worker
+from .notifications.email_sender import email_sender
+from .notifications.webpush_sender import webpush_sender
+from .notifications.notification_worker import notification_worker
 
 logger = logging.getLogger(__name__)
 
@@ -615,7 +617,7 @@ async def receive_recognition_event(event: RecognitionEvent):
         
         # Forward event to aggregator service
         async with httpx.AsyncClient() as client:
-            aggregator_url = "http://localhost:8002/events"
+            aggregator_url = "http://localhost:8004/events"
             
             # Convert to aggregator expected format
             event_data = {
@@ -645,7 +647,7 @@ async def receive_recognition_event(event: RecognitionEvent):
         logger.error(f"Failed to connect to aggregator service: {e}")
         raise HTTPException(
             status_code=503,
-            detail="Aggregator service unavailable. Make sure it's running on port 8002."
+            detail="Aggregator service unavailable. Make sure it's running on port 8004."
         )
     except Exception as e:
         logger.error(f"Recognition event processing failed: {e}")
@@ -662,7 +664,7 @@ async def get_aggregation_summary(
         
         # Forward request to aggregator service
         async with httpx.AsyncClient() as client:
-            aggregator_url = f"http://localhost:8002/summary?window_minutes={window_minutes}"
+            aggregator_url = f"http://localhost:8004/summary?window_minutes={window_minutes}"
             
             response = await client.get(aggregator_url)
             
@@ -678,7 +680,7 @@ async def get_aggregation_summary(
         logger.error(f"Failed to connect to aggregator service: {e}")
         raise HTTPException(
             status_code=503,
-            detail="Aggregator service unavailable. Make sure it's running on port 8002."
+            detail="Aggregator service unavailable. Make sure it's running on port 8004."
         )
     except Exception as e:
         logger.error(f"Failed to get aggregation summary: {e}")
@@ -715,7 +717,7 @@ async def list_characters(
             if species:
                 params["species"] = species
             
-            aggregator_url = "http://localhost:8002/characters"
+            aggregator_url = "http://localhost:8004/characters"
             response = await client.get(aggregator_url, params=params)
             
             if response.status_code == 200:
@@ -730,7 +732,7 @@ async def list_characters(
         logger.error(f"Failed to connect to aggregator service: {e}")
         raise HTTPException(
             status_code=503,
-            detail="Aggregator service unavailable. Make sure it's running on port 8002."
+            detail="Aggregator service unavailable. Make sure it's running on port 8004."
         )
     except Exception as e:
         logger.error(f"Failed to list characters: {e}")
@@ -745,7 +747,7 @@ async def update_character(character_id: str, update: CharacterUpdate):
         
         # Forward request to aggregator service
         async with httpx.AsyncClient() as client:
-            aggregator_url = f"http://localhost:8002/characters/{character_id}"
+            aggregator_url = f"http://localhost:8004/characters/{character_id}"
             
             update_data = {}
             if update.archetype:
@@ -770,10 +772,41 @@ async def update_character(character_id: str, update: CharacterUpdate):
         logger.error(f"Failed to connect to aggregator service: {e}")
         raise HTTPException(
             status_code=503,
-            detail="Aggregator service unavailable. Make sure it's running on port 8002."
+            detail="Aggregator service unavailable. Make sure it's running on port 8004."
         )
     except Exception as e:
         logger.error(f"Failed to update character: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/snapshots")
+async def get_snapshots(limit: int = Query(10, ge=1, le=50, description="Number of snapshots to return")):
+    """Get recent snapshots from aggregator service."""
+    try:
+        import httpx
+        
+        # Forward request to aggregator service
+        async with httpx.AsyncClient() as client:
+            aggregator_url = f"http://localhost:8004/snapshots?limit={limit}"
+            
+            response = await client.get(aggregator_url)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Aggregator service error: {response.text}"
+                )
+    
+    except httpx.RequestError as e:
+        logger.error(f"Failed to connect to aggregator service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Aggregator service unavailable. Make sure it's running on port 8004."
+        )
+    except Exception as e:
+        logger.error(f"Failed to get snapshots: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
