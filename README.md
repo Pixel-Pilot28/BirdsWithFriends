@@ -1,3 +1,5 @@
+<img src="https://github.com/Pixel-Pilot28/BirdsWithFriends/blob/main/Icons/file_00000000d0f861f99b5efbebd9d61d8c.png" width="200" />
+
 # Birds with Friends
 
 A real-time bird identification and storytelling app that ingests audio/video/image detections from existing bird-identification projects, converts species + counts + user attributes into structured story prompts, generates stories with an LLM, and presents them in a web UI.
@@ -18,28 +20,18 @@ A real-time bird identification and storytelling app that ingests audio/video/im
 
 ### Feature 1 — Ingest & Sampling (MVP)
 
-✅ ffmpeg sampler service  
-✅ Docker containerization
-✅ Health endpoints
-✅ Sample capture API
+ Docker containerization
+ Health endpoints
+ Sample capture API
 
 ### Feature 2 — Recognition Services
 
-✅ Audio recognition adapter (BirdCAGE mock)
-✅ Image recognition adapter (WhosAtMyFeeder mock)  
-✅ Unified event schema
-✅ Multi-count character generation
-✅ Confidence threshold handling
-✅ Docker services integration
-
-## Quick Start
-
-### Prerequisites
-
-- **FFmpeg**: Required for audio/video processing
-  - Windows: Download from https://ffmpeg.org/download.html
-  - macOS: `brew install ffmpeg`
-  - Linux: `sudo apt-get install ffmpeg`
+ Audio recognition adapter (BirdCAGE mock)
+ Image recognition adapter (WhosAtMyFeeder mock)  
+ Unified event schema
+ Multi-count character generation
+ Confidence threshold handling
+ Docker services integration
 
 ### Development
 
